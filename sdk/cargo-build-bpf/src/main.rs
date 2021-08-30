@@ -103,7 +103,13 @@ fn install_if_missing(
         .join("solana")
         .join(version)
         .join(package);
-    if !target_path.is_dir() {
+
+    if !target_path.is_dir()
+        && !target_path
+            .symlink_metadata()
+            .map(|metadata| metadata.file_type().is_symlink())
+            .unwrap_or(false)
+    {
         if target_path.exists() {
             fs::remove_file(&target_path).map_err(|err| err.to_string())?;
         }
@@ -122,7 +128,7 @@ fn install_if_missing(
             .map_err(|err| err.to_string())?;
         fs::remove_file(file).map_err(|err| err.to_string())?;
     }
-    // Make a symbolyc link source_path -> target_path in the
+    // Make a symbolic link source_path -> target_path in the
     // sdk/bpf/dependencies directory if no valid link found.
     let source_base = config.bpf_sdk.join("dependencies");
     if !source_base.exists() {
@@ -130,6 +136,7 @@ fn install_if_missing(
     }
     let source_path = source_base.join(package);
     // Check whether the correct symbolic link exists.
+<<<<<<< HEAD
     let missing_source = if source_path.exists() {
         let invalid_link = if let Ok(link_target) = source_path.read_link() {
             link_target != target_path
@@ -144,6 +151,9 @@ fn install_if_missing(
         true
     };
     if missing_source {
+=======
+    if source_path.read_link().is_err() {
+>>>>>>> 4ad706982 (cargo-build-bpf: allow sdk path to be set by environment variables)
         #[cfg(unix)]
         std::os::unix::fs::symlink(target_path, source_path).map_err(|err| err.to_string())?;
         #[cfg(windows)]
@@ -596,7 +606,19 @@ fn main() {
         .about(crate_description!())
         .version(crate_version!())
         .arg(
+<<<<<<< HEAD
+=======
+            Arg::with_name("bpf_out_dir")
+                .env("BPF_OUT_PATH")
+                .long("bpf-out-dir")
+                .value_name("DIRECTORY")
+                .takes_value(true)
+                .help("Place final BPF build artifacts in this directory"),
+        )
+        .arg(
+>>>>>>> 4ad706982 (cargo-build-bpf: allow sdk path to be set by environment variables)
             Arg::with_name("bpf_sdk")
+                .env("BPF_SDK_PATH")
                 .long("bpf-sdk")
                 .value_name("PATH")
                 .takes_value(true)
