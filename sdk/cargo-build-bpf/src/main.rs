@@ -90,10 +90,10 @@ fn install_if_missing(
     package: &str,
     version: &str,
     url: &str,
-    file: &Path,
+    download_file_name: &str,
 ) -> Result<(), String> {
     // Check whether the package is already in ~/.cache/solana.
-    // Donwload it and place in the proper location if not found.
+    // Download it and place in the proper location if not found.
     let home_dir = PathBuf::from(env::var("HOME").unwrap_or_else(|err| {
         eprintln!("Can't get home directory path: {}", err);
         exit(1);
@@ -107,20 +107,24 @@ fn install_if_missing(
         if target_path.exists() {
             fs::remove_file(&target_path).map_err(|err| err.to_string())?;
         }
+        fs::create_dir_all(&target_path).map_err(|err| err.to_string())?;
         let mut url = String::from(url);
         url.push('/');
         url.push_str(version);
         url.push('/');
-        url.push_str(file.to_str().unwrap());
-        download_file(url.as_str(), file, true, &mut None)?;
-        fs::create_dir_all(&target_path).map_err(|err| err.to_string())?;
-        let zip = File::open(&file).map_err(|err| err.to_string())?;
+        url.push_str(download_file_name);
+        let download_file_path = target_path.join(download_file_name);
+        if download_file_path.exists() {
+            fs::remove_file(&download_file_path).map_err(|err| err.to_string())?;
+        }
+        download_file(url.as_str(), &download_file_path, true, &mut None)?;
+        let zip = File::open(&download_file_path).map_err(|err| err.to_string())?;
         let tar = BzDecoder::new(BufReader::new(zip));
         let mut archive = Archive::new(tar);
         archive
             .unpack(&target_path)
             .map_err(|err| err.to_string())?;
-        fs::remove_file(file).map_err(|err| err.to_string())?;
+        fs::remove_file(download_file_path).map_err(|err| err.to_string())?;
     }
     // Make a symbolyc link source_path -> target_path in the
     // sdk/bpf/dependencies directory if no valid link found.
@@ -130,6 +134,7 @@ fn install_if_missing(
     }
     let source_path = source_base.join(package);
     // Check whether the correct symbolic link exists.
+<<<<<<< HEAD
     let missing_source = if source_path.exists() {
         let invalid_link = if let Ok(link_target) = source_path.read_link() {
             link_target != target_path
@@ -144,6 +149,19 @@ fn install_if_missing(
         true
     };
     if missing_source {
+=======
+    let invalid_link = if let Ok(link_target) = source_path.read_link() {
+        if link_target != target_path {
+            fs::remove_file(&source_path).map_err(|err| err.to_string())?;
+            true
+        } else {
+            false
+        }
+    } else {
+        true
+    };
+    if invalid_link {
+>>>>>>> 76176a462 (Recover from interrupted bpf sdk installs (#19651))
         #[cfg(unix)]
         std::os::unix::fs::symlink(target_path, source_path).map_err(|err| err.to_string())?;
         #[cfg(windows)]
@@ -417,7 +435,7 @@ fn build_bpf_package(config: &Config, target_directory: &Path, package: &cargo_m
     if legacy_program_feature_present {
         println!("Legacy program feature detected");
     }
-    let bpf_tools_filename = if cfg!(target_os = "macos") {
+    let bpf_tools_download_file_name = if cfg!(target_os = "macos") {
         "solana-bpf-tools-osx.tar.bz2"
     } else {
         "solana-bpf-tools-linux.tar.bz2"
@@ -427,7 +445,7 @@ fn build_bpf_package(config: &Config, target_directory: &Path, package: &cargo_m
         "bpf-tools",
         "v1.9",
         "https://github.com/solana-labs/bpf-tools/releases/download",
-        &PathBuf::from(bpf_tools_filename),
+        bpf_tools_download_file_name,
     )
     .expect("Failed to install bpf-tools");
     link_bpf_toolchain(config);
