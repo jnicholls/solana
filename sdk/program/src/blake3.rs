@@ -103,11 +103,18 @@ impl Hash {
 
     /// unique Hash for tests and benchmarks.
     pub fn new_unique() -> Self {
-        use std::sync::atomic::{AtomicU64, Ordering};
-        static I: AtomicU64 = AtomicU64::new(1);
+        use std::sync::Mutex;
+        lazy_static::lazy_static! {
+            static ref I: Mutex<u64> = Mutex::new(1);
+        }
 
         let mut b = [0u8; HASH_BYTES];
-        let i = I.fetch_add(1, Ordering::Relaxed);
+        let i = {
+            let mut lock = I.lock().unwrap();
+            let i = *lock;
+            *lock = i + 1;
+            i
+        };
         b[0..8].copy_from_slice(&i.to_le_bytes());
         Self::new(&b)
     }

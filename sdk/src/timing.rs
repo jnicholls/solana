@@ -1,6 +1,6 @@
 //! The `timing` module provides std::time utility functions.
 use crate::unchecked_div_by_const;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub fn duration_as_ns(d: &Duration) -> u64 {
@@ -62,7 +62,7 @@ pub fn slot_duration_from_slots_per_year(slots_per_year: f64) -> Duration {
 
 #[derive(Debug, Default)]
 pub struct AtomicInterval {
-    last_update: AtomicU64,
+    last_update: Mutex<u64>,
 }
 
 impl AtomicInterval {
@@ -72,13 +72,11 @@ impl AtomicInterval {
 
     pub fn should_update_ext(&self, interval_time: u64, skip_first: bool) -> bool {
         let now = timestamp();
-        let last = self.last_update.load(Ordering::Relaxed);
-        now.saturating_sub(last) > interval_time
-            && self
-                .last_update
-                .compare_exchange(last, now, Ordering::Relaxed, Ordering::Relaxed)
-                == Ok(last)
-            && !(skip_first && last == 0)
+        let mut lock = self.last_update.lock().unwrap();
+        let last = *lock;
+        let should_update = now.saturating_sub(last) > interval_time && !(skip_first && last == 0);
+        *lock = now;
+        should_update
     }
 }
 
